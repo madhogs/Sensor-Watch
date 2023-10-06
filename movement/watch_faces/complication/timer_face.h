@@ -52,7 +52,7 @@
 
 #include "movement.h"
 
-#define TIMER_SLOTS 9           // offer 9 timer slots
+#define TIMER_SLOTS 4           // offer 4 timer slots
 
 typedef enum {
     waiting,
