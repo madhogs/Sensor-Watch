@@ -137,9 +137,9 @@ static void _display_ticks(uint32_t ticks) {
     uint32_t seconds = ticks >> 7;
     uint32_t minutes = seconds / 60;
     if (_hours)
-        sprintf(buf, "%2u%02lu%02lu%02u", _hours, minutes, (seconds % 60), sec_100);
+        sprintf(buf, "%2u%2lu%02lu%02u", _hours, minutes, (seconds % 60), sec_100);
     else
-        sprintf(buf, "  %02lu%02lu%02u", minutes, (seconds % 60), sec_100);
+        sprintf(buf, "  %2lu%02lu%02u", minutes, (seconds % 60), sec_100);
     watch_display_string(buf, 2);
 }
 
@@ -161,10 +161,10 @@ static void _draw() {
                     minutes %= 60;
                     if (_hours)
                         // with hour indicator
-                        sprintf(buf, "%2u%02u%02lu%02u", _hours, minutes, seconds, sec_100);
+                        sprintf(buf, "%2u%2u%02lu%02u", _hours, minutes, seconds, sec_100);
                     else
                         // no hour indicator
-                        sprintf(buf, "  %02u%02lu%02u", minutes, seconds, sec_100);
+                        sprintf(buf, "  %2u%02lu%02u", minutes, seconds, sec_100);
                     watch_display_string(buf, 2);
                 } else {
                     // just draw seconds
@@ -250,12 +250,6 @@ bool stock_stopwatch_face_loop(movement_event_t event, movement_settings_t *sett
             break;
         case EVENT_TICK:
             _draw();
-            break;
-        case EVENT_LIGHT_LONG_PRESS:
-            // kind od hidden feature: long press toggles light on or off
-            state->light_on_button = !state->light_on_button;
-            if (state->light_on_button) movement_illuminate_led();
-            else watch_set_led_off();
             break;
         case EVENT_ALARM_BUTTON_DOWN:
             _is_running = !_is_running;

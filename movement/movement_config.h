@@ -28,15 +28,15 @@
 #include "movement_faces.h"
 
 const watch_face_t watch_faces[] = {
-    simple_clock_face,
-    world_clock_face,
+    clock_face,
+    alarm_face,
+    stock_stopwatch_face,
+    timer_face,
+    totp_face_lfs,
     sunrise_sunset_face,
-    moon_phase_face,
-    stopwatch_face,
-    preferences_face,
-    set_time_face,
     thermistor_readout_face,
-    voltage_face
+    preferences_face,
+    set_time_face
 };
 
 #define MOVEMENT_NUM_FACES (sizeof(watch_faces) / sizeof(watch_face_t))
@@ -56,10 +56,10 @@ const watch_face_t watch_faces[] = {
  * Set a hex value 0-15 with 0x0 being off and 0xF being max intensity
  */
 #define MOVEMENT_DEFAULT_GREEN_COLOR 0xF
-#define MOVEMENT_DEFAULT_RED_COLOR 0x0
+#define MOVEMENT_DEFAULT_RED_COLOR 0xF
 
 /* Set to true for 24h mode or false for 12h mode */
-#define MOVEMENT_DEFAULT_24H_MODE false
+#define MOVEMENT_DEFAULT_24H_MODE true
 
 /* Enable or disable the sound on mode button press */
 #define MOVEMENT_DEFAULT_BUTTON_SOUND true
@@ -71,7 +71,7 @@ const watch_face_t watch_faces[] = {
  * 2: 5 minutes
  * 3: 30 minutes
  */
-#define MOVEMENT_DEFAULT_TIMEOUT_INTERVAL 0
+#define MOVEMENT_DEFAULT_TIMEOUT_INTERVAL 1
 
 /* Set the timeout before switching to low energy mode
  * Valid values are:
@@ -84,7 +84,7 @@ const watch_face_t watch_faces[] = {
  * 6: 2 days
  * 7: 7 days
  */
-#define MOVEMENT_DEFAULT_LOW_ENERGY_INTERVAL 1
+#define MOVEMENT_DEFAULT_LOW_ENERGY_INTERVAL 7
 
 /* Set the led duration
  * Valid values are:
@@ -93,6 +93,6 @@ const watch_face_t watch_faces[] = {
  * 2: 3 seconds
  * 3: 5 seconds
  */
-#define MOVEMENT_DEFAULT_LED_DURATION 1
+#define MOVEMENT_DEFAULT_LED_DURATION 2
 
 #endif // MOVEMENT_CONFIG_H_

@@ -213,25 +213,9 @@ bool totp_face_loop(movement_event_t event, movement_settings_t *settings, void 
             }
 
             totp_generate_and_display(totp_state);
-
-            break;
-        case EVENT_LIGHT_BUTTON_UP:
-            if (totp_state->current_index == 0) {
-                // Wrap around to the last credential.
-                totp_state->current_index = totp_total() - 1;
-            } else {
-                totp_state->current_index--;
-            }
-
-            totp_generate_and_display(totp_state);
-
             break;
         case EVENT_ALARM_BUTTON_DOWN:
         case EVENT_ALARM_LONG_PRESS:
-        case EVENT_LIGHT_BUTTON_DOWN:
-            break;
-        case EVENT_LIGHT_LONG_PRESS:
-            movement_illuminate_led();
             break;
         default:
             movement_default_loop_handler(event, settings);

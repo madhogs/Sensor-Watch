@@ -49,7 +49,7 @@ void preferences_face_setup(movement_settings_t *settings, uint8_t watch_face_in
 
 void preferences_face_activate(movement_settings_t *settings, void *context) {
     (void) settings;
-    *((uint8_t *)context) = 0;
+    *((uint8_t *)context) = 1;
     movement_request_tick_frequency(4); // we need to manually blink some pixels
 }
 
@@ -66,6 +66,9 @@ bool preferences_face_loop(movement_event_t event, movement_settings_t *settings
             return false;
         case EVENT_LIGHT_BUTTON_DOWN:
             current_page = (current_page + 1) % PREFERENCES_FACE_NUM_PREFEFENCES;
+            if (current_page == 0) {
+                current_page = (current_page + 1) % PREFERENCES_FACE_NUM_PREFEFENCES;
+            }
             *((uint8_t *)context) = current_page;
             break;
         case EVENT_ALARM_BUTTON_UP:

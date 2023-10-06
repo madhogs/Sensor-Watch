@@ -55,6 +55,9 @@ typedef struct {
     watch_date_time rise_set_expires;
     sunrise_sunset_lat_lon_settings_t working_latitude;
     sunrise_sunset_lat_lon_settings_t working_longitude;
+    uint8_t rolled_value;
+    uint8_t animation_frame;
+    bool is_rolling;
 } sunrise_sunset_state_t;
 
 void sunrise_sunset_face_setup(movement_settings_t *settings, uint8_t watch_face_index, void ** context_ptr);

@@ -28,7 +28,7 @@
 #include "watch.h"
 #include "watch_utility.h"
 
-static const uint32_t _default_timer_values[] = {0x000200, 0x000500, 0x000A00, 0x001400, 0x002D02}; // default timers: 2 min, 5 min, 10 min, 20 min, 2 h 45 min
+static const uint32_t _default_timer_value = 0x000100; // default timer: 1 min
 
 // sound sequence for a single beeping sequence
 static const int8_t _sound_seq_beep[] = {BUZZER_NOTE_C8, 3, BUZZER_NOTE_REST, 3, -2, 2, BUZZER_NOTE_C8, 5, BUZZER_NOTE_REST, 25, 0};
@@ -48,16 +48,16 @@ static void _signal_callback() {
 }
 
 static void _start(timer_state_t *state, movement_settings_t *settings, bool with_beep) {
-    if (state->timers[state->current_timer].value == 0) return;
+    if (state->timer.value == 0) return;
     watch_date_time now = watch_rtc_get_date_time();
     state->now_ts = watch_utility_date_time_to_unix_time(now, _get_tz_offset(settings));
     if (state->mode == pausing)
         state->target_ts = state->now_ts + state->paused_left;
     else
         state->target_ts = watch_utility_offset_timestamp(state->now_ts, 
-                                                          state->timers[state->current_timer].unit.hours, 
-                                                          state->timers[state->current_timer].unit.minutes, 
-                                                          state->timers[state->current_timer].unit.seconds);
+                                                          state->timer.unit.hours, 
+                                                          state->timer.unit.minutes, 
+                                                          state->timer.unit.seconds);
     watch_date_time target_dt = watch_utility_date_time_from_unix_time(state->target_ts, _get_tz_offset(settings));
     state->mode = running;
     movement_schedule_background_task_for_face(state->watch_face_index, target_dt);
@@ -88,39 +88,40 @@ static void _draw(timer_state_t *state, uint8_t subsecond) {
             result = div(result.quot, 60);
             min = result.rem;
             h = result.quot;
-            sprintf(buf, " %02u%02u%02u", h, min, sec);
+            sprintf(buf, "%d%2u%02u%02u", state->loop_count, h, min, sec);
+            watch_set_colon();
             break;
         case setting:
-            if (state->settings_state == 1) {
+            if (state->settings_state == 0) {
                 // ask it the current timer shall be erased
                 sprintf(buf, " CLEAR%c", state->erase_timer_flag ? 'y' : 'n');
                 watch_clear_colon();
-            } else if (state->settings_state == 5) {
-                sprintf(buf, "  LOOP%c", state->timers[state->current_timer].unit.repeat ? 'y' : 'n');
+            } else if (state->settings_state == 4) {
+                sprintf(buf, "  LOOP%c", state->timer.unit.repeat ? 'y' : 'n');
                 watch_clear_colon();
             } else {
-                sprintf(buf, " %02u%02u%02u", state->timers[state->current_timer].unit.hours,
-                        state->timers[state->current_timer].unit.minutes,
-                        state->timers[state->current_timer].unit.seconds);
+                sprintf(buf, " %2u%02u%02u", state->timer.unit.hours,
+                        state->timer.unit.minutes,
+                        state->timer.unit.seconds);
                 watch_set_colon();
             }
             break;
         case waiting:
-            sprintf(buf, " %02u%02u%02u", state->timers[state->current_timer].unit.hours,
-                    state->timers[state->current_timer].unit.minutes,
-                    state->timers[state->current_timer].unit.seconds);
+            sprintf(buf, " %2u%02u%02u", state->timer.unit.hours,
+                    state->timer.unit.minutes,
+                    state->timer.unit.seconds);
+            watch_set_colon();
             break;
     }
-    buf[0] = 49 + state->current_timer;
+    if (state->loop_count == 0) buf[0] = ' ';
     if (state->mode == setting && subsecond % 2) {
         // blink the current settings value
-        if (state->settings_state == 0) buf[0] = ' ';
-        else if (state->settings_state == 1 || state->settings_state == 5) buf[6] = ' ';
-        else buf[(state->settings_state - 1) * 2 - 1] = buf[(state->settings_state - 1) * 2] = ' ';
+        if (state->settings_state == 0 || state->settings_state == 4) buf[6] = ' ';
+        else buf[state->settings_state * 2 - 1] = buf[state->settings_state * 2] = ' ';
     }
     watch_display_string(buf, 3);
     // set lap indicator when we have a looping timer
-    if (state->timers[state->current_timer].unit.repeat) watch_set_indicator(WATCH_INDICATOR_LAP);
+    if (state->timer.unit.repeat) watch_set_indicator(WATCH_INDICATOR_LAP);
     else watch_clear_indicator(WATCH_INDICATOR_LAP);
 }
 
@@ -130,42 +131,28 @@ static void _reset(timer_state_t *state) {
     watch_clear_indicator(WATCH_INDICATOR_BELL);
 }
 
-static void _set_next_valid_timer(timer_state_t *state) {
-    if ((state->timers[state->current_timer].value & 0xFFFFFF) == 0) {
-        uint8_t i = state->current_timer;
-        do {
-            i = (i + 1) % TIMER_SLOTS;
-        } while ((state->timers[i].value & 0xFFFFFF) == 0 && i != state->current_timer);
-        state->current_timer = i;
-    }
-}
-
 static void _resume_setting(timer_state_t *state) {
     state->settings_state = 0;
     state->mode = waiting;
     movement_request_tick_frequency(1);
-    _set_next_valid_timer(state);
 }
 
 static void _settings_increment(timer_state_t *state) {
     switch(state->settings_state) {
         case 0:
-            state->current_timer = (state->current_timer + 1) % TIMER_SLOTS;
-            break;
-        case 1:
             state->erase_timer_flag ^= 1;
             break;
+        case 1:
+            state->timer.unit.hours = (state->timer.unit.hours + 1) % 24;
+            break;
         case 2:
-            state->timers[state->current_timer].unit.hours = (state->timers[state->current_timer].unit.hours + 1) % 24;
+            state->timer.unit.minutes = (state->timer.unit.minutes + 1) % 60;
             break;
         case 3:
-            state->timers[state->current_timer].unit.minutes = (state->timers[state->current_timer].unit.minutes + 1) % 60;
+            state->timer.unit.seconds = (state->timer.unit.seconds + 1) % 60;
             break;
         case 4:
-            state->timers[state->current_timer].unit.seconds = (state->timers[state->current_timer].unit.seconds + 1) % 60;
-            break;
-        case 5:
-            state->timers[state->current_timer].unit.repeat ^= 1;
+            state->timer.unit.repeat ^= 1;
             break;
         default:
             // should never happen
@@ -197,9 +184,8 @@ void timer_face_setup(movement_settings_t *settings, uint8_t watch_face_index, v
         timer_state_t *state = (timer_state_t *)*context_ptr;
         memset(*context_ptr, 0, sizeof(timer_state_t));
         state->watch_face_index = watch_face_index;
-        for (uint8_t i = 0; i < sizeof(_default_timer_values) / sizeof(uint32_t); i++) {
-            state->timers[i].value = _default_timer_values[i];
-        }
+        state->timer.value = _default_timer_value;
+        state->loop_count = 0;
     }
 }
 
@@ -238,28 +224,26 @@ bool timer_face_loop(movement_event_t event, movement_settings_t *settings, void
             }
             _draw(state, subsecond);
             break;
-        case EVENT_LIGHT_BUTTON_DOWN:
+        case EVENT_LIGHT_BUTTON_UP:
             switch (state->mode) {
                 case pausing:
+                case waiting:
                 case running:
                     movement_illuminate_led();
                     break;
                 case setting:
                     if (state->erase_timer_flag) {
-                        state->timers[state->current_timer].value = 0;
+                        state->timer.value = 0;
                         state->erase_timer_flag = false;
                     }
-                    state->settings_state = (state->settings_state + 1) % 6;
-                    if (state->settings_state == 1 && state->timers[state->current_timer].value == 0) state->settings_state = 2;
-                    else if (state->settings_state == 5 && (state->timers[state->current_timer].value & 0xFFFFFF) == 0) state->settings_state = 0;
+                    state->settings_state = (state->settings_state + 1) % 5;
+                    if (state->settings_state == 0) _resume_setting(state);
+                    else if (state->settings_state == 4 && (state->timer.value & 0xFFFFFF) == 0) state->settings_state = 1;
                     break;
                 default:
                     break;
             }
             _draw(state, event.subsecond);
-            break;
-        case EVENT_LIGHT_BUTTON_UP:
-            if (state->mode == waiting) movement_illuminate_led();
             break;
         case EVENT_ALARM_BUTTON_UP:
             _abort_quick_cycle(state);
@@ -275,11 +259,6 @@ bool timer_face_loop(movement_event_t event, movement_settings_t *settings, void
                     _start(state, settings, false);
                     break;
                 case waiting: {
-                    uint8_t last_timer = state->current_timer;
-                    state->current_timer = (state->current_timer + 1) % TIMER_SLOTS;
-                    _set_next_valid_timer(state);
-                    // start the time immediately if there is only one valid timer slot
-                    if (last_timer == state->current_timer) _start(state, settings, true);
                     break;
                 }
                 case setting:
@@ -306,18 +285,19 @@ bool timer_face_loop(movement_event_t event, movement_settings_t *settings, void
             _beeps_to_play = 4;
             watch_buzzer_play_sequence((int8_t *)_sound_seq_beep, _signal_callback);
             _reset(state);
-            if (state->timers[state->current_timer].unit.repeat) _start(state, settings, false);
+            if (state->timer.unit.repeat) {
+                state->loop_count = (state->loop_count + 1) % 10;
+                _start(state, settings, false);
+            }
+            else state->loop_count = 0;
             break;
         case EVENT_ALARM_LONG_PRESS:
             switch(state->mode) {
                 case setting:
                     switch (state->settings_state) {
-                        case 0:
-                            state->current_timer = 0;
-                            break;
+                        case 1:
                         case 2:
                         case 3:
-                        case 4:
                             state->quick_cycle = true;
                             movement_request_tick_frequency(8);
                             break;
@@ -331,6 +311,7 @@ bool timer_face_loop(movement_event_t event, movement_settings_t *settings, void
                 case pausing:
                 case running:
                     _reset(state);
+                    state->loop_count = 0;
                     if (settings->bit.button_should_sound) watch_buzzer_play_note(BUZZER_NOTE_C7, 50);
                     break;
                 default:
@@ -345,6 +326,9 @@ bool timer_face_loop(movement_event_t event, movement_settings_t *settings, void
         case EVENT_TIMEOUT:
             _abort_quick_cycle(state);
             movement_move_to_face(0);
+            break;
+        // don't light up every time light is hit
+        case EVENT_LIGHT_BUTTON_DOWN:
             break;
         default:
             movement_default_loop_handler(event, settings);
