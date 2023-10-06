@@ -293,7 +293,6 @@ bool alarm_face_loop(movement_event_t event, movement_settings_t *settings, void
     case EVENT_LIGHT_BUTTON_UP:
         if (!state->is_setting) {
             movement_illuminate_led();
-            _alarm_initiate_setting(settings, state, event.subsecond);
             break;
         }
         state->setting_state += 1;
