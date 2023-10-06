@@ -318,6 +318,89 @@ void sunrise_sunset_face_activate(movement_settings_t *settings, void *context) 
     state->working_longitude = _sunrise_sunset_face_struct_from_latlon(movement_location.bit.longitude);
 }
 
+static void _update_moon_phase(movement_settings_t *settings) {
+    float lunar_days = 29.53058770576;
+    double lunar_seconds = lunar_days * 24 * 60 * 60;
+    uint32_t first_moon = 947182440; // Saturday, 6 January 2000 18:14:00 in unix epoch time
+    uint8_t num_phases = 8;
+    float phase_changes[] = {0, 1, 6.38264692644, 8.38264692644, 13.76529385288, 15.76529385288, 21.14794077932, 23.14794077932, 28.53058770576, 29.53058770576};
+
+    char buf[11];
+    watch_date_time date_time = watch_rtc_get_date_time();
+    uint32_t now = watch_utility_date_time_to_unix_time(date_time, movement_timezone_offsets[settings->bit.time_zone] * 60);
+    date_time = watch_utility_date_time_from_unix_time(now, movement_timezone_offsets[settings->bit.time_zone] * 60);
+    double currentfrac = fmod(now - first_moon, lunar_seconds) / lunar_seconds;
+    double currentday = currentfrac * lunar_days;
+    uint8_t phase_index = 0;
+
+    for(phase_index = 0; phase_index <= num_phases; phase_index++) {
+        if (currentday > phase_changes[phase_index] && currentday <= phase_changes[phase_index + 1]) break;
+    }
+    
+    watch_clear_display();
+    watch_display_string(" ", 0);
+    switch (phase_index) {
+        case 0:
+        case 8:
+            sprintf(buf, "%2d Neu  ", date_time.unit.day);
+            break;
+        case 1:
+            sprintf(buf, "%2dCresnt", date_time.unit.day);
+            watch_set_pixel(2, 13);
+            watch_set_pixel(2, 15);
+            if (currentfrac > 0.125) watch_set_pixel(1, 13);
+            break;
+        case 2:
+            sprintf(buf, "%2d 1st q", date_time.unit.day);
+            watch_set_pixel(2, 13);
+            watch_set_pixel(2, 15);
+            watch_set_pixel(1, 13);
+            watch_set_pixel(1, 14);
+            break;
+        case 3:
+            sprintf(buf, "%2d Gibb ", date_time.unit.day);
+            watch_set_pixel(2, 13);
+            watch_set_pixel(2, 15);
+            watch_set_pixel(1, 14);
+            watch_set_pixel(1, 13);
+            watch_set_pixel(1, 15);
+            break;
+        case 4:
+            sprintf(buf, "%2d FULL ", date_time.unit.day);
+            watch_set_pixel(2, 13);
+            watch_set_pixel(2, 15);
+            watch_set_pixel(1, 14);
+            watch_set_pixel(2, 14);
+            watch_set_pixel(1, 15);
+            watch_set_pixel(0, 14);
+            watch_set_pixel(0, 13);
+            watch_set_pixel(1, 13);
+            break;
+        case 5:
+            sprintf(buf, "%2d Gibb ", date_time.unit.day);
+            watch_set_pixel(1, 14);
+            watch_set_pixel(2, 14);
+            watch_set_pixel(1, 15);
+            watch_set_pixel(0, 14);
+            watch_set_pixel(0, 13);
+            break;
+        case 6:
+            sprintf(buf, "%2d 3rd q", date_time.unit.day);
+            watch_set_pixel(1, 14);
+            watch_set_pixel(2, 14);
+            watch_set_pixel(0, 14);
+            watch_set_pixel(0, 13);
+            break;
+        case 7:
+            sprintf(buf, "%2dCresnt", date_time.unit.day);
+            watch_set_pixel(0, 14);
+            watch_set_pixel(0, 13);
+            if (currentfrac < 0.875) watch_set_pixel(2, 14);
+            break;
+    }
+    watch_display_string(buf, 2);
+}
+
 bool sunrise_sunset_face_loop(movement_event_t event, movement_settings_t *settings, void *context) {
     sunrise_sunset_state_t *state = (sunrise_sunset_state_t *)context;
 
@@ -364,8 +447,12 @@ bool sunrise_sunset_face_loop(movement_event_t event, movement_settings_t *setti
                 _sunrise_sunset_face_advance_digit(state);
                 _sunrise_sunset_face_update_settings_display(event, context);
             } else {
-                state->rise_index = (state->rise_index + 1) % 2;
-                _sunrise_sunset_face_update(settings, state);
+                state->rise_index = (state->rise_index + 1) % 3;
+                if (state->rise_index == 0 || state->rise_index == 1) {
+                    _sunrise_sunset_face_update(settings, state);
+                } else {
+                    _update_moon_phase(settings);
+                }
             }
             break;
         case EVENT_ALARM_LONG_PRESS:
@@ -378,16 +465,10 @@ bool sunrise_sunset_face_loop(movement_event_t event, movement_settings_t *setti
             }
             break;
         case EVENT_TIMEOUT:
-            if (watch_get_backup_data(1) == 0) {
-                // if no location set, return home
-                movement_move_to_face(0);
-            } else if (state->page || state->rise_index) {
-                // otherwise on timeout, exit settings mode and return to the next sunrise or sunset
-                state->page = 0;
-                state->rise_index = 0;
-                movement_request_tick_frequency(1);
-                _sunrise_sunset_face_update(settings, state);
-            }
+            state->page = 0;
+            state->rise_index = 0;
+            movement_request_tick_frequency(1);
+            movement_move_to_face(0);
             break;
         default:
             return movement_default_loop_handler(event, settings);
