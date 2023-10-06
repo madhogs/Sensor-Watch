@@ -299,16 +299,8 @@ bool totp_face_lfs_loop(movement_event_t event, movement_settings_t *settings, v
             totp_face_set_record(totp_state, (totp_state->current_index + 1) % num_totp_records);
             totp_face_display(totp_state);
             break;
-        case EVENT_LIGHT_BUTTON_UP:
-            totp_face_set_record(totp_state, (totp_state->current_index + num_totp_records - 1) % num_totp_records);
-            totp_face_display(totp_state);
-            break;
         case EVENT_ALARM_BUTTON_DOWN:
         case EVENT_ALARM_LONG_PRESS:
-        case EVENT_LIGHT_BUTTON_DOWN:
-            break;
-        case EVENT_LIGHT_LONG_PRESS:
-            movement_illuminate_led();
             break;
         default:
             movement_default_loop_handler(event, settings);

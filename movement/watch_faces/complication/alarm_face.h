@@ -41,8 +41,7 @@
  *    - In setting mode an alarm slot is selected by pressing the alarm button when the slot number 
  *      in the upper right corner is blinking.
  *    - For each alarm slot, you can select the day. These are the day modes:
- *        - ED = the alarm rings every day
- *        - 1t = the alarm fires only one time and is erased afterwards
+ *        - AL = the alarm rings all days
  *        - MF = the alarm fires Mondays to Fridays
  *        - WN = the alarm fires on weekends (Sa/Su)
  *        - MO to SU = the alarm fires only on the given day of week
@@ -56,17 +55,15 @@
 
 #include "movement.h"
 
-#define ALARM_ALARMS 16     // no of available alarm slots (be aware: only 4 bits reserved for this value in struct below)
-#define ALARM_DAY_STATES 11 // no of different day settings
+#define ALARM_DAY_STATES 10 // no of different day settings
 #define ALARM_DAY_EACH_DAY 7
-#define ALARM_DAY_ONE_TIME 8
-#define ALARM_DAY_WORKDAY 9
-#define ALARM_DAY_WEEKEND 10
+#define ALARM_DAY_WORKDAY 8
+#define ALARM_DAY_WEEKEND 9
 #define ALARM_MAX_BEEP_ROUNDS 11 // maximum number of beeping rounds for an alarm slot (including short and long alarms)
-#define ALARM_SETTING_STATES 6
+#define ALARM_SETTING_STATES 5
 
 typedef struct {
-    uint8_t day : 4;    // day of week: 0=MO, 1=TU, 2=WE, 3=TH, 4=FR, 5=SA, 6=SU, 7=each day, 8=one time alarm, 9=Weekdays, 10=Weekend
+    uint8_t day : 4;    // day of week: 0=MO, 1=TU, 2=WE, 3=TH, 4=FR, 5=SA, 6=SU, 7=all days, 8=Weekdays, 9=Weekend
     uint8_t hour : 5;
     uint8_t minute : 6;
     uint8_t beeps : 4;
@@ -75,13 +72,11 @@ typedef struct {
 } alarm_setting_t;
 
 typedef struct {
-    uint8_t alarm_idx : 4;
-    uint8_t alarm_playing_idx : 4;
     uint8_t setting_state : 3;
     int8_t alarm_handled_minute;
     bool alarm_quick_ticks : 1;
     bool is_setting : 1;
-    alarm_setting_t alarm[ALARM_ALARMS];
+    alarm_setting_t alarm;
 } alarm_state_t;
 
 
