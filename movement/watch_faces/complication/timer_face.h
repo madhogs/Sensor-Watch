@@ -52,8 +52,6 @@
 
 #include "movement.h"
 
-#define TIMER_SLOTS 9           // offer 9 timer slots
-
 typedef enum {
     waiting,
     running,
@@ -77,10 +75,9 @@ typedef struct {
     uint16_t paused_left;
     uint8_t pausing_seconds;
     uint8_t watch_face_index;
-    timer_setting_t timers[TIMER_SLOTS]; 
+    timer_setting_t timer; 
     uint8_t settings_state : 4;
-    uint8_t current_timer : 4;
-    uint8_t set_timers : 4;
+    uint8_t loop_count : 4;
     bool erase_timer_flag : 1;
     timer_mode_t mode : 3;
     bool quick_cycle : 1;

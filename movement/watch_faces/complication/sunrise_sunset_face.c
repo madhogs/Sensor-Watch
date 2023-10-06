@@ -35,6 +35,7 @@
 
 #if __EMSCRIPTEN__
 #include <emscripten.h>
+#include <time.h>
 #endif
 
 static void _sunrise_sunset_set_expiration(sunrise_sunset_state_t *state, watch_date_time next_rise_set) {
@@ -109,7 +110,7 @@ static void _sunrise_sunset_face_update(movement_settings_t *settings, sunrise_s
                     if (watch_utility_convert_to_12_hour(&scratch_time)) watch_set_indicator(WATCH_INDICATOR_PM);
                     else watch_clear_indicator(WATCH_INDICATOR_PM);
                 }
-                sprintf(buf, "rI%2d%2d%02d  ", scratch_time.unit.day, scratch_time.unit.hour, scratch_time.unit.minute);
+                sprintf(buf, "rI%2d%2d%02d %c", scratch_time.unit.day, scratch_time.unit.hour, scratch_time.unit.minute, 47);
                 watch_display_string(buf, 0);
                 return;
             } else {
@@ -136,7 +137,7 @@ static void _sunrise_sunset_face_update(movement_settings_t *settings, sunrise_s
                     if (watch_utility_convert_to_12_hour(&scratch_time)) watch_set_indicator(WATCH_INDICATOR_PM);
                     else watch_clear_indicator(WATCH_INDICATOR_PM);
                 }
-                sprintf(buf, "SE%2d%2d%02d  ", scratch_time.unit.day, scratch_time.unit.hour, scratch_time.unit.minute);
+                sprintf(buf, "SE%2d%2d%02d %c", scratch_time.unit.day, scratch_time.unit.hour, scratch_time.unit.minute, 47);
                 watch_display_string(buf, 0);
                 return;
             } else {
@@ -290,6 +291,11 @@ void sunrise_sunset_face_setup(movement_settings_t *settings, uint8_t watch_face
         *context_ptr = malloc(sizeof(sunrise_sunset_state_t));
         memset(*context_ptr, 0, sizeof(sunrise_sunset_state_t));
     }
+
+    // Emulator only: Seed random number generator
+    #if __EMSCRIPTEN__
+    srand(time(NULL));
+    #endif
 }
 
 void sunrise_sunset_face_activate(movement_settings_t *settings, void *context) {
@@ -316,6 +322,137 @@ void sunrise_sunset_face_activate(movement_settings_t *settings, void *context) 
     movement_location_t movement_location = (movement_location_t) watch_get_backup_data(1);
     state->working_latitude = _sunrise_sunset_face_struct_from_latlon(movement_location.bit.latitude);
     state->working_longitude = _sunrise_sunset_face_struct_from_latlon(movement_location.bit.longitude);
+    state->rolled_value = 0;
+}
+
+static void _update_moon_phase(movement_settings_t *settings) {
+    float lunar_days = 29.53058770576;
+    double lunar_seconds = lunar_days * 24 * 60 * 60;
+    uint32_t first_moon = 947182440; // Saturday, 6 January 2000 18:14:00 in unix epoch time
+    uint8_t num_phases = 8;
+    float phase_changes[] = {0, 1, 6.38264692644, 8.38264692644, 13.76529385288, 15.76529385288, 21.14794077932, 23.14794077932, 28.53058770576, 29.53058770576};
+
+    char buf[11];
+    watch_date_time date_time = watch_rtc_get_date_time();
+    uint32_t now = watch_utility_date_time_to_unix_time(date_time, movement_timezone_offsets[settings->bit.time_zone] * 60);
+    date_time = watch_utility_date_time_from_unix_time(now, movement_timezone_offsets[settings->bit.time_zone] * 60);
+    double currentfrac = fmod(now - first_moon, lunar_seconds) / lunar_seconds;
+    double currentday = currentfrac * lunar_days;
+    uint8_t phase_index = 0;
+
+    for(phase_index = 0; phase_index <= num_phases; phase_index++) {
+        if (currentday > phase_changes[phase_index] && currentday <= phase_changes[phase_index + 1]) break;
+    }
+    
+    watch_clear_display();
+    watch_display_string(" ", 0);
+    switch (phase_index) {
+        case 0:
+        case 8:
+            sprintf(buf, "%2d Neu  ", date_time.unit.day);
+            break;
+        case 1:
+            sprintf(buf, "%2dCresnt", date_time.unit.day);
+            watch_set_pixel(2, 13);
+            watch_set_pixel(2, 15);
+            if (currentfrac > 0.125) watch_set_pixel(1, 13);
+            break;
+        case 2:
+            sprintf(buf, "%2d 1st q", date_time.unit.day);
+            watch_set_pixel(2, 13);
+            watch_set_pixel(2, 15);
+            watch_set_pixel(1, 13);
+            watch_set_pixel(1, 14);
+            break;
+        case 3:
+            sprintf(buf, "%2d Gibb ", date_time.unit.day);
+            watch_set_pixel(2, 13);
+            watch_set_pixel(2, 15);
+            watch_set_pixel(1, 14);
+            watch_set_pixel(1, 13);
+            watch_set_pixel(1, 15);
+            break;
+        case 4:
+            sprintf(buf, "%2d FULL ", date_time.unit.day);
+            watch_set_pixel(2, 13);
+            watch_set_pixel(2, 15);
+            watch_set_pixel(1, 14);
+            watch_set_pixel(2, 14);
+            watch_set_pixel(1, 15);
+            watch_set_pixel(0, 14);
+            watch_set_pixel(0, 13);
+            watch_set_pixel(1, 13);
+            break;
+        case 5:
+            sprintf(buf, "%2d Gibb ", date_time.unit.day);
+            watch_set_pixel(1, 14);
+            watch_set_pixel(2, 14);
+            watch_set_pixel(1, 15);
+            watch_set_pixel(0, 14);
+            watch_set_pixel(0, 13);
+            break;
+        case 6:
+            sprintf(buf, "%2d 3rd q", date_time.unit.day);
+            watch_set_pixel(1, 14);
+            watch_set_pixel(2, 14);
+            watch_set_pixel(0, 14);
+            watch_set_pixel(0, 13);
+            break;
+        case 7:
+            sprintf(buf, "%2dCresnt", date_time.unit.day);
+            watch_set_pixel(0, 14);
+            watch_set_pixel(0, 13);
+            if (currentfrac < 0.875) watch_set_pixel(2, 14);
+            break;
+    }
+    watch_display_string(buf, 2);
+}
+
+static void generate_random_number(sunrise_sunset_state_t *state) {
+    uint8_t dice_sides = 100;
+    // Emulator: use rand. Hardware: use arc4random.
+    #if __EMSCRIPTEN__
+    state->rolled_value = rand() % dice_sides + 1;
+    #else
+    state->rolled_value = arc4random_uniform(dice_sides) + 1;
+    #endif
+
+    state->is_rolling = true;
+    movement_request_tick_frequency(8);
+}
+
+static void display_dice_roll(sunrise_sunset_state_t *state) {
+    char buf[8];
+    sprintf(buf, "%2d", state->rolled_value);
+    watch_display_string(buf, 8);
+    movement_request_tick_frequency(1);
+}
+
+static void display_dice_roll_animation(sunrise_sunset_state_t *state) {
+    if (state->is_rolling) {
+        if (state->animation_frame == 0) {
+            watch_display_string("  ", 8);
+            watch_set_pixel(1, 4);
+            watch_set_pixel(1, 6);
+            state->animation_frame = 1;
+        } else if (state->animation_frame == 1) {
+            watch_clear_pixel(1, 4);
+            watch_clear_pixel(1, 6);
+            watch_set_pixel(2, 4);
+            watch_set_pixel(0, 6);
+            state->animation_frame = 2;
+        } else if (state->animation_frame == 2) {
+            watch_clear_pixel(2, 4);
+            watch_clear_pixel(0, 6);
+            watch_set_pixel(2, 5);
+            watch_set_pixel(0, 5);
+            state->animation_frame = 3;
+        } else if (state->animation_frame == 3) {
+            state->animation_frame = 0;
+            state->is_rolling = false;
+            display_dice_roll(state);
+        }
+    }
 }
 
 bool sunrise_sunset_face_loop(movement_event_t event, movement_settings_t *settings, void *context) {
@@ -340,6 +477,7 @@ bool sunrise_sunset_face_loop(movement_event_t event, movement_settings_t *setti
             } else {
                 _sunrise_sunset_face_update_settings_display(event, state);
             }
+            display_dice_roll_animation(state);
             break;
         case EVENT_LIGHT_BUTTON_DOWN:
             if (state->page) {
@@ -351,12 +489,13 @@ bool sunrise_sunset_face_loop(movement_event_t event, movement_settings_t *setti
                     _sunrise_sunset_face_update_location_register(state);
                 }
                 _sunrise_sunset_face_update_settings_display(event, context);
+                if (state->page == 0) {
+                    movement_request_tick_frequency(1);
+                    state->rise_index = 0;
+                    _sunrise_sunset_face_update(settings, state);
+                }
             } else {
                 movement_illuminate_led();
-            }
-            if (state->page == 0) {
-                movement_request_tick_frequency(1);
-                _sunrise_sunset_face_update(settings, state);
             }
             break;
         case EVENT_ALARM_BUTTON_UP:
@@ -364,11 +503,15 @@ bool sunrise_sunset_face_loop(movement_event_t event, movement_settings_t *setti
                 _sunrise_sunset_face_advance_digit(state);
                 _sunrise_sunset_face_update_settings_display(event, context);
             } else {
-                state->rise_index = (state->rise_index + 1) % 2;
-                _sunrise_sunset_face_update(settings, state);
+                state->rise_index = (state->rise_index + 1) % 3;
+                if (state->rise_index == 2) {
+                    _update_moon_phase(settings);
+                } else {
+                    _sunrise_sunset_face_update(settings, state);
+                }
             }
             break;
-        case EVENT_ALARM_LONG_PRESS:
+        case EVENT_LIGHT_LONG_PRESS:
             if (state->page == 0) {
                 state->page++;
                 state->active_digit = 0;
@@ -377,17 +520,17 @@ bool sunrise_sunset_face_loop(movement_event_t event, movement_settings_t *setti
                 _sunrise_sunset_face_update_settings_display(event, context);
             }
             break;
-        case EVENT_TIMEOUT:
-            if (watch_get_backup_data(1) == 0) {
-                // if no location set, return home
-                movement_move_to_face(0);
-            } else if (state->page || state->rise_index) {
-                // otherwise on timeout, exit settings mode and return to the next sunrise or sunset
-                state->page = 0;
-                state->rise_index = 0;
-                movement_request_tick_frequency(1);
-                _sunrise_sunset_face_update(settings, state);
+        case EVENT_ALARM_LONG_PRESS:
+            if (state->page == 0 && (state->rise_index == 0 || state->rise_index == 1)) {
+                // Roll the die
+                generate_random_number(state);
             }
+            break;
+        case EVENT_TIMEOUT:
+            state->page = 0;
+            state->rise_index = 0;
+            movement_request_tick_frequency(1);
+            movement_move_to_face(0);
             break;
         default:
             return movement_default_loop_handler(event, settings);
