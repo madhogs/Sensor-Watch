@@ -31,10 +31,10 @@
 #include <string.h>
 #include "probability_face.h"
 
-#define DEFAULT_DICE_SIDES 2
+#define DEFAULT_DICE_SIDES 100
 #define PROBABILITY_ANIMATION_TICK_FREQUENCY 8
-const uint16_t NUM_DICE_TYPES = 8; // Keep this consistent with # of dice types below
-const uint16_t DICE_TYPES[] = {2, 4, 6, 8, 10, 12, 20, 100};
+const uint16_t NUM_DICE_TYPES = 4; // Keep this consistent with # of dice types below
+const uint16_t DICE_TYPES[] = {100, 10, 6, 2};
 
 
 // --------------
