@@ -32,7 +32,7 @@ const watch_face_t watch_faces[] = {
     alarm_face,
     stock_stopwatch_face,
     timer_face,
-    totp_face,
+    totp_face_lfs,
     sunrise_sunset_face,
     thermistor_readout_face,
     preferences_face,
